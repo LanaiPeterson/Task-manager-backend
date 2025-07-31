@@ -19,11 +19,11 @@ export default function authMiddleware(req, res, next) {
   }
 
   try {
-    const data = jwt.verify(token, secret, { maxAge:"1d" });
-    console.log(data);
+    const data = jwt.verify(token, secret);
+    console.log("Decoded JWT data:", data);
     req.user = data;
-  } catch {
-    console.log("Invalid token");
+  } catch (error) {
+    console.log("Invalid token:", error.message);
     return res.status(401).json({ message: "Invalid token." });
   }
 

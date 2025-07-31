@@ -3,22 +3,28 @@ import Project from '../models/Project.js';
 
 export const createTask = async (req, res) => {
   try {
-    // Ensure project exists and belongs to user
-   
-    const project = await Project.findOne({ _id: req.body.project, owner: req.user.id });
-    if (!project) return res.status(404).json({ message: 'Project not found or unauthorized' });
-
-    const task = await Task.create({
+    const taskData = {
       title: req.body.title,
       details: req.body.details,
-      project: req.body.project,
-      owner: String(req.user.id)
-    });
+      owner: req.user.id,
+      completed: req.body.completed || false
+    };
 
-    // Add task to project's tasks array
-    project.tasks.push(task._id);
-    await project.save();
+    // If project is specified, verify it exists and belongs to user
+    if (req.body.project) {
+      const project = await Project.findOne({ _id: req.body.project, owner: req.user.id });
+      if (!project) return res.status(404).json({ message: 'Project not found or unauthorized' });
+      taskData.project = req.body.project;
+      
+      // Add task to project's tasks array
+      const task = await Task.create(taskData);
+      project.tasks.push(task._id);
+      await project.save();
+      return res.status(201).json(task);
+    }
 
+    // Create task without project
+    const task = await Task.create(taskData);
     res.status(201).json(task);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -60,14 +66,24 @@ export const updateTask = async (req, res) => {
 
 export const deleteTask = async (req, res) => {
   try {
+    console.log(`Attempting to delete task with ID: ${req.params.id} for user: ${req.user.id}`);
     const task = await Task.findOneAndDelete({ _id: req.params.id, owner: req.user.id });
-    if (!task) return res.status(404).json({ message: 'Task not found or unauthorized' });
+    if (!task) {
+      console.log(`Task not found or unauthorized: ${req.params.id}`);
+      return res.status(404).json({ message: 'Task not found or unauthorized' });
+    }
 
-    // Remove task from its project's tasks array
-    await Project.updateOne({ _id: task.project }, { $pull: { tasks: task._id } });
+    console.log(`Task deleted successfully: ${task._id}`);
+
+    // Remove task from its project's tasks array if task had a project
+    if (task.project) {
+      console.log(`Removing task from project: ${task.project}`);
+      await Project.updateOne({ _id: task.project }, { $pull: { tasks: task._id } });
+    }
 
     res.status(204).end();
   } catch (error) {
+    console.error('Error deleting task:', error);
     res.status(400).json({ message: error.message });
   }
 };
